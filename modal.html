@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>modal</title>
+  <style>
+  body {
+    background-color: #121212;
+    color: #bbb;
+    font-family: sans-serif;
+    padding: 20px;
+  }
+  .job {
+    padding: 10px;
+    border: 1px solid #333;
+    background-color: #1e1e1e;
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .status {
+    font-size: 0.9em;
+    opacity: 0.6;
+    margin-left: 10px;
+  }
+  .delete-btn {
+    background: none;
+    border: none;
+    color: #d09595;
+    font-size: 1.2em;
+    cursor: pointer;
+  }
+  ul {
+    padding-left: 20px;
+  }
+  li {
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .controls {
+    margin-top: 10px;
+  }
+  .controls button {
+    background-color: #2a2a2a;
+    border: 1px solid #444;
+    color: #eee;
+    padding: 6px 12px;
+    margin-right: 5px;
+    cursor: pointer;
+  }
+  .controls button:hover {
+    background-color: #3a3a3a;
+  }
+  .hidden {
+    display: none;
+  }
+  .item-left {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  span[contenteditable] {
+    border-bottom: 1px dashed #555;
+    padding: 2px 4px;
+    cursor: text;
+  }
+  input[type="checkbox"] {
+    transform: scale(1.2);
+    accent-color: #800000;
+  }
+</style>
+</head>
+<body>
+
+  <!-- Job List Screen -->
+  <div id="jobListScreen">
+    <h1 style="display: flex; align-items: center; gap: 10px;">
+      <span>Jobs</span>
+      <span id="progressIndicator" style="font-size: 0.4em; color: #006ba1;"></span>
+      <button onclick="resetAll()" style="padding: 4px 10px; font-size: 0.5em; 
+        background-color: #2a2a2a; border: 1px solid #444; color: #bebebe;">
+        Reset All Jobs
+      </button>
+    </h1>
+    <div id="jobContainer" ondragover="event.preventDefault()"></div>
+    <div class="controls">
+      <button onclick="addJob()">Add New Job</button>
+    </div>
+  </div>
+
+  <!-- Checklist Screen -->
+  <div id="checklistScreen" class="hidden">
+    <h2 id="jobTitle" contenteditable="true" onblur="saveJobTitle()"></h2>
+    <ul id="checklist" ondragover="event.preventDefault()"></ul>
+    <div class="controls">
+      <button onclick="addItem()">Add Item</button>
+      <button onclick="resetJob()">Reset This Job</button>
+      <button onclick="goBack()">Back to Jobs</button>
+    </div>
+  </div>
+
+  <!-- Sound Effects -->
+  <audio id="sound-open" src="sounds/open.mp3"></audio>
+  <audio id="sound-close" src="sounds/close.mp3"></audio>
+  <audio id="sound-check" src="sounds/check.mp3"></audio>
+  <audio id="sound-complete" src="sounds/complete.mp3"></audio>
+  <audio id="sound-reset" src="sounds/reset.mp3"></audio>
+
+  <script>
+    const sounds = {
+      open: document.getElementById('sound-open'),
+      close: document.getElementById('sound-close'),
+      check: document.getElementById('sound-check'),
+      complete: document.getElementById('sound-complete'),
+      reset: document.getElementById('sound-reset'),
+    };
+
+    const jobContainer = document.getElementById('jobContainer');
+    const checklistScreen = document.getElementById('checklistScreen');
+    const jobListScreen = document.getElementById('jobListScreen');
+    const checklist = document.getElementById('checklist');
+    const jobTitle = document.getElementById('jobTitle');
+
+    let jobList = JSON.parse(localStorage.getItem('jobList') || '[]');
+    let currentJobId = null;
+    let dragSrcIndex = null;
+
+    function getJobStatus(jobId) {
+      const data = JSON.parse(localStorage.getItem(jobId) || '[]');
+      if (data.length === 0) return '···';
+      const checked = data.filter(item => item.checked).length;
+      if (checked === 0) return '···';
+      if (checked === data.length) return '★';
+      return 'In Progress';
+    }
+
+  /*  function renderJobs() {
+      jobContainer.innerHTML = '';
+      const indicator = document.getElementById('progressIndicator');
+        const hasInProgress = jobList.some(job => getJobStatus(job.id) === 'In Progress');
+        indicator.textContent = hasInProgress ? 'In Progress' : '•    •    •';
+      jobList.forEach((job, index) => {
+        const status = getJobStatus(job.id);
+        const div = document.createElement('div');
+        div.className = 'job';
+        div.draggable = true;
+        div.ondragstart = () => dragSrcIndex = index;
+        div.ondrop = () => {
+          if (dragSrcIndex !== null && dragSrcIndex !== index) {
+            const moved = jobList.splice(dragSrcIndex, 1)[0];
+            jobList.splice(index, 0, moved);
+            localStorage.setItem('jobList', JSON.stringify(jobList));
+            renderJobs();
+          }
+        }; */
+        
+        function renderJobs() {
+          jobContainer.innerHTML = '';
+          const indicator = document.getElementById('progressIndicator');
+
+          const statuses = jobList.map(job => getJobStatus(job.id));
+          const allNotStarted = statuses.every(status => status === '···');
+          const anyInProgress = statuses.some(status => status === 'In Progress');
+
+          if (anyInProgress) {
+            indicator.textContent = 'In Progress';
+          } else if (allNotStarted) {
+              indicator.textContent = '•    •    •';
+            } else {
+                indicator.textContent = '  ★  ';
+              }
+
+  jobList.forEach((job, index) => {
+    const status = getJobStatus(job.id);
+    const div = document.createElement('div');
+    div.className = 'job';
+    div.draggable = true;
+    div.ondragstart = () => dragSrcIndex = index;
+    div.ondrop = () => {
+      if (dragSrcIndex !== null && dragSrcIndex !== index) {
+        const moved = jobList.splice(dragSrcIndex, 1)[0];
+        jobList.splice(index, 0, moved);
+        localStorage.setItem('jobList', JSON.stringify(jobList));
+        renderJobs();
+      }
+    };  //end of renderjobs function
+
+        const titleArea = document.createElement('div');
+        titleArea.style.flexGrow = 1;
+        titleArea.style.cursor = 'pointer';
+        titleArea.innerHTML = `<strong>${job.title}</strong><span class="status">${status}</span>`;
+        titleArea.onclick = () => openChecklist(job.id);
+
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'delete-btn';
+        deleteBtn.textContent = '×';
+        deleteBtn.title = 'Delete Job';
+        deleteBtn.onclick = (e) => {
+          e.stopPropagation();
+          if (confirm("Delete this job?")) {
+            jobList = jobList.filter(j => j.id !== job.id);
+            localStorage.removeItem(job.id);
+            localStorage.setItem('jobList', JSON.stringify(jobList));
+            renderJobs();
+          }
+        };
+
+        div.appendChild(titleArea);
+        div.appendChild(deleteBtn);
+        jobContainer.appendChild(div);
+      });
+    }
+
+    function openChecklist(jobId) {
+      currentJobId = jobId;
+      const job = jobList.find(j => j.id === jobId);
+      jobTitle.innerText = job.title;
+      checklist.innerHTML = '';
+      const data = JSON.parse(localStorage.getItem(jobId) || '[]');
+
+      data.forEach((item, index) => {
+        const li = document.createElement('li');
+        li.draggable = true;
+        li.ondragstart = () => dragSrcIndex = index;
+        li.ondrop = () => {
+          if (dragSrcIndex !== null && dragSrcIndex !== index) {
+            const moved = data.splice(dragSrcIndex, 1)[0];
+            data.splice(index, 0, moved);
+            localStorage.setItem(jobId, JSON.stringify(data));
+            openChecklist(jobId);
+          }
+        };
+
+        const leftSide = document.createElement('div');
+        leftSide.className = 'item-left';
+
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.checked = item.checked;
+        checkbox.onchange = () => {
+          item.checked = checkbox.checked;
+          localStorage.setItem(jobId, JSON.stringify(data));
+          sounds.check.currentTime = 0; sounds.check.play();
+          if (data.length > 0 && data.every(i => i.checked)) {
+            sounds.complete.currentTime = 0; sounds.complete.play();
+            jobTitle.innerText = job.title + ' (Job Complete!)';
+          } else {
+            jobTitle.innerText = job.title;
+          }
+        };
+
+        const textSpan = document.createElement('span');
+        textSpan.textContent = item.text;
+        textSpan.contentEditable = true;
+        textSpan.onblur = () => {
+          item.text = textSpan.textContent;
+          localStorage.setItem(jobId, JSON.stringify(data));
+        };
+
+        leftSide.appendChild(checkbox);
+        leftSide.appendChild(textSpan);
+
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'delete-btn';
+        deleteBtn.textContent = '🗑️';
+        deleteBtn.title = 'Delete Item';
+        deleteBtn.onclick = () => {
+          if (confirm("Delete this checklist item?")) {
+            data.splice(index, 1);
+            localStorage.setItem(jobId, JSON.stringify(data));
+            openChecklist(jobId);
+          }
+        };
+
+        li.appendChild(leftSide);
+        li.appendChild(deleteBtn);
+        checklist.appendChild(li);
+      });
+
+      jobListScreen.classList.add('hidden');
+      checklistScreen.classList.remove('hidden');
+      sounds.open.play();
+    }
+
+    function goBack() {
+      checklistScreen.classList.add('hidden');
+      jobListScreen.classList.remove('hidden');
+      renderJobs();
+      sounds.close.play();
+    }
+
+    function addItem() {
+      const text = prompt("Enter new checklist item:");
+      if (!text) return;
+      const data = JSON.parse(localStorage.getItem(currentJobId) || '[]');
+      data.push({ text, checked: false });
+      localStorage.setItem(currentJobId, JSON.stringify(data));
+      openChecklist(currentJobId);
+    }
+
+    function resetAll() {
+      jobList.forEach(job => {
+        const data = JSON.parse(localStorage.getItem(job.id) || '[]');
+        data.forEach(item => item.checked = false);
+        localStorage.setItem(job.id, JSON.stringify(data));
+      });
+      renderJobs();
+      sounds.reset.currentTime = 0; sounds.reset.play();
+    }
+
+    function resetJob() {
+      const data = JSON.parse(localStorage.getItem(currentJobId) || '[]');
+      data.forEach(item => item.checked = false);
+      localStorage.setItem(currentJobId, JSON.stringify(data));
+      openChecklist(currentJobId);
+      sounds.reset.currentTime = 0; sounds.reset.play();
+    }
+
+    function addJob() {
+      const title = prompt("Enter job title:");
+      if (!title) return;
+      const id = 'job_' + Date.now();
+      jobList.push({ id, title });
+      localStorage.setItem('jobList', JSON.stringify(jobList));
+      localStorage.setItem(id, JSON.stringify([]));
+      renderJobs();
+    }
+
+    function saveJobTitle() {
+      const job = jobList.find(j => j.id === currentJobId);
+      if (!job) return;
+      job.title = jobTitle.innerText.replace(' (Job Complete!)', '');
+      localStorage.setItem('jobList', JSON.stringify(jobList));
+    }
+
+    renderJobs();
+  </script>
+</body>
+</html>
